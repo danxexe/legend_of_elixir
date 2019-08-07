@@ -17,86 +17,76 @@ defmodule LegendOfElixir.Scene.Home do
   """
 
   @text_size 24
+  @velocity 10
 
   # ============================================================================
   # setup
 
   # --------------------------------------------------------
   def init(_, opts) do
-    # get the width and height of the viewport. This is to demonstrate creating
-    # a transparent full-screen rectangle to catch user input
-    {:ok, %ViewPort.Status{size: {width, height}}} = ViewPort.info(opts[:viewport])
-
-    # show the version of scenic and the glfw driver
-    scenic_ver = Application.spec(:scenic, :vsn) |> to_string()
-    glfw_ver = Application.spec(:scenic, :vsn) |> to_string()
-
     start_pos = {50, 450}
-    state = %{pos: start_pos}
+    state = %{pos: start_pos, direction: MapSet.new([])}
 
     graph =
       Graph.build(font: :roboto, font_size: @text_size)
-      |> rounded_rectangle({100, 200, 8}, fill: :blue, translate: start_pos)
+      |> rounded_rectangle({100, 200, 8}, fill: :red, translate: start_pos)
+
+    Process.send_after(self(), :tick, 10)
 
     {:ok, state, push: graph}
   end
 
-  def handle_input(event = {:key, {key, event_type, 0}}, _context, state) when key in ["W"] and event_type in [:press, :repeat] do
-    {x, y} = Map.get(state, :pos)
+  @controls %{
+    "W" => {0, -1},
+    "A" => {-1, 0},
+    "S" => {0, 1},
+    "D" => {1, 0},
+  }
+  
+  @move_keys @controls |> Map.keys()
 
-    new_position = {x, y - 10}
+  def handle_input(event = {:key, {key, event_type, 0}}, _context, state) when key in @move_keys and event_type in [:press, :release] do
+    # move_to = state |> Map.get(:direction) |> sum_vector(Map.fetch!(@controls, key) |> scale_vector(@velocity))
+    
+    vector = Map.fetch!(@controls, key)
+    
+    move_to = case event_type do
+      :press -> state |> Map.get(:direction) |> MapSet.put(vector)
+      :release -> state |> Map.get(:direction) |> MapSet.delete(vector)
+    end
 
-    graph =
-      Graph.build(font: :roboto, font_size: @text_size)
-      |> rounded_rectangle({100, 200, 8}, fill: :red, translate: new_position)
+    graph = Graph.build(font: :roboto, font_size: @text_size)
+            |> text(inspect(move_to), translate: {50, 50})
 
-    Logger.info("Received event: #{inspect(event)}")
-
-
-    {:noreply, %{pos: new_position}, push: graph}
-  end
-
-  def handle_input({:key, {key, event_type, 0}}, _context, state) when key in ["A"] and event_type in [:press, :repeat] do
-    {x, y} = Map.get(state, :pos)
-
-    new_position = {x - 10, y}
-
-    graph =
-      Graph.build(font: :roboto, font_size: @text_size)
-      |> rounded_rectangle({100, 200, 8}, fill: :red, translate: new_position)
-
-
-    {:noreply, %{pos: new_position}, push: graph}
-  end
-
-  def handle_input({:key, {key, event_type, 0}}, _context, state) when key in ["D"] and event_type in [:press, :repeat] do
-    {x, y} = Map.get(state, :pos)
-
-    new_position = {x + 10, y}
-
-    graph =
-      Graph.build(font: :roboto, font_size: @text_size)
-      |> rounded_rectangle({100, 200, 8}, fill: :red, translate: new_position)
-
-
-    {:noreply, %{pos: new_position}, push: graph}
-  end
-
-  def handle_input({:key, {key, event_type, 0}}, _context, state) when key in ["S"] and event_type in [:press, :repeat] do
-    {x, y} = Map.get(state, :pos)
-
-    new_position = {x, y + 10}
-
-    graph =
-      Graph.build(font: :roboto, font_size: @text_size)
-      |> rounded_rectangle({100, 200, 8}, fill: :red, translate: new_position)
-
-
-    {:noreply, %{pos: new_position}, push: graph}
+    {:noreply, %{state | direction: move_to}, push: graph}
   end
 
   def handle_input(event, _context, state) do
     Logger.info("Received event: #{inspect(event)}")
     {:noreply, state}
+  end
+  
+  def handle_info(:tick, state) do
+
+    new_position = state 
+    |> Map.get(:direction)
+    |> Enum.reduce({0,0}, &sum_vector/2)
+    |> scale_vector(@velocity)
+    |> sum_vector(state.pos)
+    
+    graph = Graph.build
+            |> rounded_rectangle({100, 200, 8}, fill: :red, translate: new_position)
+    
+    Process.send_after(self(), :tick, 10)
+    
+    {:noreply, %{state | pos: new_position}, push: graph}
+  end
+  
+  def sum_vector({x1, y1}, {x2, y2}) do
+    {x1+x2, y1+y2}
+  end
+  
+  def scale_vector({x,y}, scalar) do
+    {x*scalar, y*scalar}
   end
 end
