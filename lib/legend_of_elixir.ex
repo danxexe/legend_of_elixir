@@ -10,7 +10,7 @@ defmodule LegendOfElixir do
     # start the application with the viewport
     children = [
       {Scenic, viewports: [main_viewport_config]},
-      LegendOfElixir.Server,
+      LegendOfElixir.LocalServer,
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)

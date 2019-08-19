@@ -4,7 +4,7 @@ defmodule LegendOfElixir.Scene.Home do
 
   alias Scenic.Graph
   alias Scenic.ViewPort
-  alias LegendOfElixir.Server
+  alias LegendOfElixir.RemoteServer, as: Server
 
   import Scenic.Primitives
   # import Scenic.Components
@@ -30,13 +30,13 @@ defmodule LegendOfElixir.Scene.Home do
     graph = Graph.build(font: :roboto, font_size: @text_size)
 
     graph = state.players
-    |> Enum.reduce(graph, fn player, graph ->
-      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, translate: player.pos, id: player.id)
+    |> Enum.reduce(graph, fn {player_id, player}, graph ->
+      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, translate: player.pos, id: player_id)
     end)
 
     Process.send_after(self(), :tick, 10)
 
-    {:ok, _state = nil, push: graph}
+    {:ok, graph, push: graph}
   end
 
   @controls %{
@@ -48,25 +48,13 @@ defmodule LegendOfElixir.Scene.Home do
 
   @move_keys @controls |> Map.keys()
 
-  def handle_input(event = {:key, {key, event_type, 0}}, _context, state) when key in ["1", "2"] and event_type in [:press] do
-    server_state = Server.current_state
-
-    active_player = %{
-      "1" => :player1,
-      "2" => :player2,
-    } |> Map.get(key)
-
-    Server.update_state(%{server_state | active_player: active_player})
-
-    {:noreply, state}
-  end
 
   def handle_input(event = {:key, {key, event_type, 0}}, _context, state) when key in @move_keys and event_type in [:press, :release] do
     server_state = Server.current_state
 
     vector = Map.fetch!(@controls, key)
 
-    active_player = server_state.players |> Enum.filter(fn player -> player.id == server_state.active_player end) |> hd
+    active_player = server_state.players |> get_in([:player1])
 
     new_direction = case event_type do
       :press -> active_player |> Map.get(:direction) |> MapSet.put(vector)
@@ -75,11 +63,7 @@ defmodule LegendOfElixir.Scene.Home do
 
     updated_active_player = %{active_player | direction: new_direction}
 
-    other_players = server_state.players |> Enum.reject(fn player -> player.id == server_state.active_player end)
-
-    players = [updated_active_player | other_players] |> Enum.reverse
-
-    Server.update_state(%{server_state | players: players})
+    Server.update_player(server_state.active_player, updated_active_player)
 
     {:noreply, state}
   end
@@ -89,33 +73,32 @@ defmodule LegendOfElixir.Scene.Home do
     {:noreply, state}
   end
 
-  def handle_info(:tick, state) do
+  def handle_info(:tick, graph) do
     server_state = Server.current_state
 
-    players = server_state.players
-    |> Enum.map(fn player ->
-      new_position = player
-      |> Map.get(:direction)
-      |> Enum.reduce({0,0}, &sum_vector/2)
-      |> scale_vector(@velocity)
-      |> sum_vector(player.pos)
+    player = server_state.players
+    |> Keyword.get(:player1)
 
-      %{player | pos: new_position}
+    updated_position = player
+    |> Map.get(:direction)
+    |> Enum.reduce({0,0}, &sum_vector/2)
+    |> scale_vector(@velocity)
+    |> sum_vector(player.pos)
+
+    updated_player = %{player | pos: updated_position}
+
+    Server.update_player(:player1, updated_player)
+
+    players = put_in(server_state.players, [:player1], updated_player)
+
+    graph = graph
+    |> Graph.modify(:player1, fn rect ->
+      %Scenic.Primitive{rect | transforms: %{translate: updated_position}}
     end)
-
-
-    graph = Graph.build()
-
-    graph = players
-    |> Enum.reduce(graph, fn player, graph ->
-      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, translate: player.pos, id: player.id)
-    end)
-
-    Server.update_state(%{server_state | players: players})
 
     Process.send_after(self(), :tick, 10)
 
-    {:noreply, state, push: graph}
+    {:noreply, graph, push: graph}
   end
 
   def sum_vector({x1, y1}, {x2, y2}) do
