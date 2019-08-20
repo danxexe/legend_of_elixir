@@ -1,11 +1,11 @@
 defmodule LegendOfElixir.RemoteServer do
+  @node :"server@192.168.244.58"
+
   def current_state do
-    Agent.get({LegendOfElixir.LocalServer, :"server@EB-C02R35H4FVH3"}, & &1)
+    GenServer.call({LegendOfElixir.LocalServer, @node}, :current_state)
   end
 
   def update_player(id, player_state) do
-   Agent.update({LegendOfElixir.LocalServer, :"server@EB-C02R35H4FVH3"}, fn state ->
-     put_in(state, [:players, id], player_state)
-   end)
+    GenServer.cast({LegendOfElixir.LocalServer, @node}, {:update_player, id, player_state})
   end
 end

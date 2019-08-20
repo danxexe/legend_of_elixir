@@ -12,13 +12,26 @@ mix archive.install hex scenic_new
 mix scenic.new legend_of_elixir
 ```
 
-## Run
+## Installing dependencies
 
 ```
 cd legend_of_elixir
-mix do deps.get, scenic.run
+mix do deps.get
 ```
 
+## Running
+
+### Server
+```
+iex --name "server@192.168.244.58" --cookie "my-secret" -S mix
+```
+
+### Client
+```
+iex --name "client@192.168.244.58" --cookie "my-secret" -S mix
+```
+
+## Gotchas
 
 There's a bug for `handle_continue/2` on the current version on hex.pm.
 The latest version on Github has a fix:

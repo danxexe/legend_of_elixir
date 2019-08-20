@@ -1,5 +1,5 @@
 defmodule LegendOfElixir.LocalServer do
-  use Agent
+  use GenServer
 
   @initial_state %{
     active_player: :player1,
@@ -10,16 +10,31 @@ defmodule LegendOfElixir.LocalServer do
   }
 
   def start_link(_) do
-    Agent.start_link(fn -> @initial_state end, name: __MODULE__)
+    GenServer.start_link(__MODULE__, @initial_state, name: __MODULE__)
   end
 
   def current_state do
-    Agent.get(__MODULE__, & &1)
+    GenServer.call(__MODULE__, :current_state)
   end
 
   def update_player(id, player_state) do
-   Agent.update(__MODULE__, fn state ->
-     put_in(state, [:players, id], player_state)
-   end)
+    GenServer.cast(__MODULE__, {:update_player, id, player_state})
+  end
+
+  @impl true
+  def init(init_arg) do
+    {:ok, init_arg}
+  end
+
+  @impl true
+  def handle_call(:current_state, _from, state) do
+    {:reply, state, state}
+  end
+
+  @impl true
+  def handle_cast({:update_player, id, player_state}, state) do
+    state = put_in(state, [:players, id], player_state)
+
+    {:noreply, state}
   end
 end
