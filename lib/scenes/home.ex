@@ -31,11 +31,13 @@ defmodule LegendOfElixir.Scene.Home do
   def handle_continue({:start_tick, delay}, _state) do
     state = Server.current_state
 
-    graph = Graph.build(font: :roboto, font_size: @text_size)
+    graph = Graph.build(clear_color: {0x40, 0x5d, 0x3a}, font: :roboto, font_size: @text_size)
+
+    graph = (1..200) |> Enum.reduce(graph, fn _, graph -> graph |> random_object end)
 
     graph = state.players
     |> Enum.reduce(graph, fn {player_id, player}, graph ->
-      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, translate: player.pos, id: player_id)
+      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, stroke: {1, :white}, translate: player.pos, id: player_id)
     end)
 
     Process.send_after(self(), :tick, delay)
