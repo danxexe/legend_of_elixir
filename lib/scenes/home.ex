@@ -25,24 +25,29 @@ defmodule LegendOfElixir.Scene.Home do
   end
 
   def init(_args, _opts) do
-    {:ok, _state = nil, continue: {:start_tick, 10}}
+    state = %{
+      player_id: node(),
+      player: %{pos: random_position(), direction: MapSet.new([]), color: random_color()},
+      graph: Graph.build(clear_color: {0x40, 0x5d, 0x3a}, font: :roboto, font_size: @text_size),
+    }
+
+    {:ok, state, continue: {:start_tick, 10}}
   end
 
-  def handle_continue({:start_tick, delay}, _state) do
-    state = Server.current_state
+  def handle_continue({:start_tick, delay}, state) do
+    Server.update_player(state.player_id, state.player)
+    server_state = Server.current_state
 
-    graph = Graph.build(clear_color: {0x40, 0x5d, 0x3a}, font: :roboto, font_size: @text_size)
+    graph = state.graph
 
     graph = (1..200) |> Enum.reduce(graph, fn _, graph -> graph |> random_object end)
 
-    graph = state.players
-    |> Enum.reduce(graph, fn {player_id, player}, graph ->
-      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, stroke: {1, :white}, translate: player.pos, id: player_id)
-    end)
+    graph = graph
+    |> update_players(server_state.players)
 
     Process.send_after(self(), :tick, delay)
 
-    {:noreply, graph, push: graph}
+    {:noreply, state |> Map.put(:graph, graph), push: graph}
   end
 
   def handle_input({:key, {key, event_type, 0}}, _context, state) when key in @move_keys and event_type in [:press, :release] do
@@ -50,7 +55,7 @@ defmodule LegendOfElixir.Scene.Home do
 
     vector = Map.fetch!(@controls, key)
 
-    active_player = server_state.players |> get_in([:player1])
+    active_player = server_state.players |> get_in([state.player_id])
 
     new_direction = case event_type do
       :press -> active_player |> Map.get(:direction) |> MapSet.put(vector)
@@ -59,7 +64,7 @@ defmodule LegendOfElixir.Scene.Home do
 
     updated_active_player = %{active_player | direction: new_direction}
 
-    Server.update_player(server_state.active_player, updated_active_player)
+    Server.update_player(state.player_id, updated_active_player)
 
     {:noreply, state}
   end
@@ -69,11 +74,11 @@ defmodule LegendOfElixir.Scene.Home do
     {:noreply, state}
   end
 
-  def handle_info(:tick, graph) do
+  def handle_info(:tick, state) do
     server_state = Server.current_state
 
     player = server_state.players
-    |> Keyword.get(:player1)
+    |> Keyword.get(state.player_id)
 
     updated_position = player
     |> Map.get(:direction)
@@ -83,23 +88,16 @@ defmodule LegendOfElixir.Scene.Home do
 
     updated_player = %{player | pos: updated_position}
 
-    Server.update_player(:player1, updated_player)
+    Server.update_player(state.player_id, updated_player)
 
-    graph = graph
-    |> Graph.modify(:player1, fn rect ->
+    graph = state.graph
+    |> update_players(server_state.players)
+    |> Graph.modify(state.player_id, fn rect ->
       %Scenic.Primitive{rect | transforms: %{translate: updated_position}}
     end)
 
     Process.send_after(self(), :tick, 10)
 
-    {:noreply, graph, push: graph}
-  end
-
-  def sum_vector({x1, y1}, {x2, y2}) do
-    {x1+x2, y1+y2}
-  end
-
-  def scale_vector({x,y}, scalar) do
-    {x*scalar, y*scalar}
+    {:noreply, state |> Map.put(:graph, graph), push: graph}
   end
 end

@@ -2,10 +2,9 @@ defmodule LegendOfElixir.LocalServer do
   use GenServer
 
   @initial_state %{
-    active_player: :player1,
     players: [
-      player1: %{pos: {50, 450}, direction: MapSet.new([]), color: :red},
-      player2: %{pos: {250, 450}, direction: MapSet.new([]), color: :blue},
+      # player1: %{pos: {50, 450}, direction: MapSet.new([]), color: :red},
+      # player2: %{pos: {250, 450}, direction: MapSet.new([]), color: :blue},
     ]
   }
 
