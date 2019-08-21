@@ -3,41 +3,13 @@ defmodule LegendOfElixir.Scene.Home do
   require Logger
 
   alias Scenic.Graph
-  alias Scenic.ViewPort
   alias LegendOfElixir.RemoteServer, as: Server
 
   import Scenic.Primitives
-  # import Scenic.Components
-
-  @note """
-    This is a very simple starter application.
-
-    If you want a more full-on example, please start from:
-
-    mix scenic.new.example
-  """
+  import LegendOfElixir.GraphHelpers
 
   @text_size 24
   @velocity 5
-
-  # ============================================================================
-  # setup
-
-  # --------------------------------------------------------
-  def init(_, opts) do
-    state = Server.current_state
-
-    graph = Graph.build(font: :roboto, font_size: @text_size)
-
-    graph = state.players
-    |> Enum.reduce(graph, fn {player_id, player}, graph ->
-      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, translate: player.pos, id: player_id)
-    end)
-
-    Process.send_after(self(), :tick, 10)
-
-    {:ok, graph, push: graph}
-  end
 
   @controls %{
     "W" => {0, -1},
@@ -48,8 +20,30 @@ defmodule LegendOfElixir.Scene.Home do
 
   @move_keys @controls |> Map.keys()
 
+  def child_spec({args, opts}) when is_list(opts) do
+    super({args, opts}) |> Map.merge(%{restart: :temporary})
+  end
 
-  def handle_input(event = {:key, {key, event_type, 0}}, _context, state) when key in @move_keys and event_type in [:press, :release] do
+  def init(_args, _opts) do
+    {:ok, _state = nil, continue: {:start_tick, 10}}
+  end
+
+  def handle_continue({:start_tick, delay}, _state) do
+    state = Server.current_state
+
+    graph = Graph.build(font: :roboto, font_size: @text_size)
+
+    graph = state.players
+    |> Enum.reduce(graph, fn {player_id, player}, graph ->
+      graph |> rounded_rectangle({40, 40, 8}, fill: player.color, translate: player.pos, id: player_id)
+    end)
+
+    Process.send_after(self(), :tick, delay)
+
+    {:noreply, graph, push: graph}
+  end
+
+  def handle_input({:key, {key, event_type, 0}}, _context, state) when key in @move_keys and event_type in [:press, :release] do
     server_state = Server.current_state
 
     vector = Map.fetch!(@controls, key)
@@ -88,8 +82,6 @@ defmodule LegendOfElixir.Scene.Home do
     updated_player = %{player | pos: updated_position}
 
     Server.update_player(:player1, updated_player)
-
-    players = put_in(server_state.players, [:player1], updated_player)
 
     graph = graph
     |> Graph.modify(:player1, fn rect ->

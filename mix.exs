@@ -23,8 +23,8 @@ defmodule LegendOfElixir.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:scenic, "~> 0.10"},
-      {:scenic_driver_glfw, "~> 0.10", targets: :host},
+      {:scenic, github: "danxexe/scenic", ref: "a17aa97c71c0f7f40c30d62991c5f446070bcc7c", override: true},
+      {:scenic_driver_glfw, github: "boydm/scenic_driver_glfw", ref: "e744f89a929278be41339b25364ea84768674359", targets: :host},
     ]
   end
 end
